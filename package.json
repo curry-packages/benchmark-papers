@@ -1,0 +1,20 @@
+{
+    "name": "benchmark-papers",
+    "version": "0.0.1",
+    "author": "Michael Hanus <mh@informatik.uni-kiel.de>",
+    "synopsis": "A tool to support executable benchmark papers",
+    "category": [ "Programming", "Testing" ],
+    "dependencies": {
+    },
+    "exportedModules": [ "Benchmarks", "BenchmarkGoodies",
+                         "ExecuteBenchmarkPaper" ],
+    "configModule": "BenchmarkPackageConfig",
+    "executable": {
+        "name": "exec-benchmarkpaper",
+        "main": "ExecuteBenchmarkPaper"
+    },
+    "source": {
+        "git": "https://git.ps.informatik.uni-kiel.de/curry-packages/benchmark-papers.git",
+        "tag": "$version"
+    }
+}

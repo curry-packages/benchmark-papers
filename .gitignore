@@ -1,0 +1,7 @@
+*~
+.cpm
+.curry
+src/BenchmarkPackageConfig.curry
+*.aux
+*.log
+*.pdf
