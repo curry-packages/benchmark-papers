@@ -1,7 +1,7 @@
 benchmark-papers: A Tool to Execute Benchmark Papers
 ====================================================
 
-This package contains a tool to support *executable benchmark papers*,
+This package contains a tool to support **executable benchmark papers**,
 i.e., papers which contain program code (written in Curry)
 to run the benchmarks shown in the paper. The tool is able
 to run the benchmarks and include the results in the paper
