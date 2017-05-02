@@ -63,7 +63,7 @@ prepareBenchmarkCleanup :: IO () -> IO a -> IO () -> Benchmark a
 prepareBenchmarkCleanup pre bench post =
   BM done done (execBench (BM pre post bench))
 
---- Iterates a benchmark multiple times and compute the average according
+--- Iterates a benchmark multiple times and computes the average according
 --- to a given average function (first argument).
 --- The preparation and cleanup actions of the benchmark are
 --- only executed once, i.e., they are not iterated.
@@ -71,13 +71,13 @@ iterateBench :: ([a] -> b) -> Int -> Benchmark a -> Benchmark b
 iterateBench average n (BM pre post action) = BM pre post $
   mapIO (\_ -> action) [1..n] >>= \rs -> return (average rs)
 
---- Iterates a float-valued benchmark multiple times and compute the average.
+--- Iterates a float-valued benchmark multiple times and computes the average.
 --- The number of executions (first argument) must be postive.
 (*>) :: Int -> Benchmark Float -> Benchmark Float
 n *> floatbench = iterateBench floatAverage n floatbench
 
 --- Iterates a `(Maybe Float)`-valued benchmark multiple times and
---- compute the average.
+--- computes the average.
 --- The number of executions (first argument) must be postive.
 (*>-) :: Int -> Benchmark (Maybe Float) -> Benchmark (Maybe Float)
 n *>- mbfloatbench = iterateBench maybeFloatAverage n mbfloatbench
@@ -87,13 +87,13 @@ n *>- mbfloatbench = iterateBench maybeFloatAverage n mbfloatbench
 mapBench :: (a -> b) -> Benchmark a -> Benchmark b
 mapBench f (BM pre post action) = BM pre post $ action >>= return . f
 
---- Combine two benchmarks to a single benchmark where the results
+--- Combines two benchmarks to a single benchmark where the results
 --- are paired.
 pairBench :: Benchmark a -> Benchmark b -> Benchmark (a,b)
 pairBench bench1 bench2 = BM done done $
   execBench bench1 >>= \x -> execBench bench2 >>= \y -> return (x,y)
 
---- Compute the difference between two benchmarks according to a given
+--- Computes the difference between two benchmarks according to a given
 --- difference operation (first argument).
 --- This could be useful to evaluate some kernel of a computation where
 --- the ressources to prepare the benchmark data are measured by
@@ -102,14 +102,14 @@ diffBench :: (a -> a -> a) -> Benchmark a -> Benchmark a -> Benchmark a
 diffBench minus bench1 bench2 =
   mapBench (uncurry minus) (pairBench bench1 bench2)
 
---- Compute the numeric difference between two Float-valued benchmarks.
+--- Computes the numeric difference between two Float-valued benchmarks.
 --- This could be useful to evaluate some kernel of a computation where
 --- the ressources to prepare the benchmark data are measured by
 --- a separate benchmark and subtracted with this operation.
 (.-.) :: Benchmark Float -> Benchmark Float -> Benchmark Float
 bench1 .-. bench2 = diffBench (-.) bench1 bench2
 
---- Execute two benchmarks in sequential order. The second benchmark
+--- Executes two benchmarks in sequential order. The second benchmark
 --- has the result of the first benchmark as an argument so that
 --- its behavior can depend on the first benchmark result.
 --- An example use is shown in the operation 'benchOnWithLimit'.
@@ -121,7 +121,7 @@ bench1 >!>= abench2 = BM done done $
 returnBM :: a -> Benchmark a
 returnBM x = benchmark (return x)
 
---- Run a parameterized benchmark on a list of input data.
+--- Runs a parameterized benchmark on a list of input data.
 --- The result is a benchmark returning a list of pairs consisting
 --- of the input data and the benchmark result for this input data.
 ---
@@ -132,7 +132,7 @@ runOn :: (a -> Benchmark b) -> [a] -> Benchmark [(a,b)]
 runOn bench xs = BM done done $
   mapIO (\x -> execBench (bench x) >>= \y -> return (x,y)) xs
 
---- Run a `Maybe` benchmark on an (infinite) input list of values
+--- Runs a `Maybe` benchmark on an (infinite) input list of values
 --- until a benchmark delivers `Nothing`.
 ---
 --- @param bench - the `Maybe` benchmark parameterized by the input data

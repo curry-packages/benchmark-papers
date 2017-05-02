@@ -6,8 +6,7 @@
     "category": [ "Programming", "Testing" ],
     "dependencies": {
     },
-    "exportedModules": [ "Benchmarks", "BenchmarkGoodies",
-                         "ExecuteBenchmarkPaper" ],
+    "exportedModules": [ "Benchmarks", "BenchmarkGoodies" ],
     "configModule": "BenchmarkPackageConfig",
     "executable": {
         "name": "exec-benchmarkpaper",
