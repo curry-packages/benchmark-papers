@@ -1,14 +1,14 @@
 {
     "name": "benchmark-papers",
-    "version": "0.0.1",
+    "version": "2.0.0",
     "author": "Michael Hanus <mh@informatik.uni-kiel.de>",
     "synopsis": "A tool to support executable benchmark papers",
     "category": [ "Programming", "Testing" ],
     "dependencies": {
     },
     "compilerCompatibility": {
-        "pakcs": ">= 1.14.0, < 2.0.0",
-        "kics2": ">= 0.5.0, < 2.0.0"
+        "pakcs": ">= 2.0.0",
+        "kics2": ">= 2.0.0"
     },
     "exportedModules": [ "Benchmarks", "BenchmarkGoodies" ],
     "configModule": "BenchmarkPackageConfig",

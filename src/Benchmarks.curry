@@ -152,7 +152,8 @@ runUntilOn bench stop (x:xs) =
 --- @param bench - the `Maybe` benchmark parameterized by the input data
 --- @param benchdata - the list of input data for the benchmarks
 --- @return Benchmark with the list of input data and benchmark results pairs
-runUntilNothingOn :: (a -> Benchmark (Maybe b)) -> [a] -> Benchmark [(a,b)]
+runUntilNothingOn :: Eq b => (a -> Benchmark (Maybe b)) -> [a]
+                          -> Benchmark [(a,b)]
 runUntilNothingOn bench benchdata =
   mapBench (map (\ (x,Just y) -> (x,y)))
            (runUntilOn bench (==Nothing) benchdata)

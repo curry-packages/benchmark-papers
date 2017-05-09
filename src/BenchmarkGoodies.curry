@@ -75,6 +75,7 @@ data PlotStyle = Lines
                | XLabel String
                | YLabel String
                | XTicsRotate Int
+ deriving Eq
 
 --- Transform plot styles into gnuplot commands.
 plotStyle2GP :: PlotStyle -> String
@@ -97,7 +98,8 @@ showInt i = if i<0 then '-' : show (-i) else show i
 --- to this name). Further arguments are the plot style and
 --- the data to be plotted (represented as a pair of a title
 --- and the (x,y) values to be plotted).
-plotResults :: String -> [PlotStyle] -> [(String,[(a,b)])] -> IO ()
+plotResults :: (Show a, Show b) =>
+               String -> [PlotStyle] -> [(String,[(a,b)])] -> IO ()
 plotResults outfile pstyles titleddata = do
   let pname          = stripSuffix outfile
       outsuffix      = fileSuffix outfile
@@ -129,7 +131,8 @@ plotResults outfile pstyles titleddata = do
     -- lc rgb "black" : select black color
 
 -- Write data into file for gnuplot:
-writeDataFile :: String -> (a,(b,[(c,d)])) -> IO (b,String)
+writeDataFile :: (Show a, Show c, Show d) =>
+                 String -> (a,(b,[(c,d)])) -> IO (b,String)
 writeDataFile fileprefix (n,(title,bdata)) = do
   let datafilename = fileprefix++show n++".dat"
   writeFile datafilename
