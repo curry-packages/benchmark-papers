@@ -14,9 +14,9 @@ module BenchmarkGoodies(
          )
  where
 
-import FileGoodies(fileSuffix,stripSuffix)
-import List
-import System
+import Data.List
+import System.Process
+import System.FilePath
 
 -----------------------------------------------------------------------
 -- Operations to format data as strings.
@@ -101,8 +101,8 @@ showInt i = if i<0 then '-' : show (-i) else show i
 plotResults :: (Show a, Show b) =>
                String -> [PlotStyle] -> [(String,[(a,b)])] -> IO ()
 plotResults outfile pstyles titleddata = do
-  let pname          = stripSuffix outfile
-      outsuffix      = fileSuffix outfile
+  let pname          = dropExtension outfile
+      outsuffix      = takeExtension outfile
       plotfileprefix = pname++"_"
       scriptfile     = pname++".gpscript"
       terminalset    = case outsuffix of

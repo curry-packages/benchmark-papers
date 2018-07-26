@@ -17,19 +17,18 @@ module Benchmarks(Benchmark, benchmark, prepareBenchmarkCleanup,
          maxResidentMemory,
          benchCommand, benchCommandWithLimit,
          elapsedTime4Command, cpuTime4Command,
-         getHostName, getOS, getSystemID, getSystemRelease, 
+         getHostName, getOS, getSystemID, getSystemRelease,
          getSystemDescription, getCoreNumber, getCPUModel )
  where
 
-import IO
-import IOExts
-import List
-import Profile
+import System.Process
+import System.IO
+import Data.List
+import Data.Maybe
+import Data.Char
+import Debug.Profile
 import ReadShowTerm
-import Char
-import System
-import Float
-import Maybe(sequenceMaybe)
+import IOExts
 
 --- Representation of benchmarks.
 --- A benchmark consists of some preparation, e.g., to generate
@@ -81,7 +80,7 @@ n *> floatbench = iterateBench floatAverage n floatbench
 --- The number of executions (first argument) must be postive.
 (*>-) :: Int -> Benchmark (Maybe Float) -> Benchmark (Maybe Float)
 n *>- mbfloatbench = iterateBench maybeFloatAverage n mbfloatbench
-  where maybeFloatAverage = maybe Nothing (Just . floatAverage) . sequenceMaybe
+  where maybeFloatAverage = maybe Nothing (Just . floatAverage) . sequence
 
 --- Maps benchmark results according to a given mapping (first argument).
 mapBench :: (a -> b) -> Benchmark a -> Benchmark b
@@ -107,7 +106,7 @@ diffBench minus bench1 bench2 =
 --- the ressources to prepare the benchmark data are measured by
 --- a separate benchmark and subtracted with this operation.
 (.-.) :: Benchmark Float -> Benchmark Float -> Benchmark Float
-bench1 .-. bench2 = diffBench (-.) bench1 bench2
+bench1 .-. bench2 = diffBench (-) bench1 bench2
 
 --- Executes two benchmarks in sequential order. The second benchmark
 --- has the result of the first benchmark as an argument so that
@@ -188,7 +187,7 @@ benchTimeNF getexp = benchmark $ do
   garbageCollectorOn
   let rtime = maybe 0 id (lookup RunTime pi2)
               - maybe 0 id (lookup RunTime pi1)
-  return (i2f rtime /. 1000.0)
+  return (fromInt rtime / 1000)
 
 -----------------------------------------------------------------
 -- Benchmarks returning the output of system commands.
@@ -363,7 +362,7 @@ intAverage xs = foldr (+) 0 xs `div` (length xs)
 
 --- Average of a list of floats.
 floatAverage :: [Float] -> Float
-floatAverage xs = foldr (+.) 0.0 xs /. (i2f (length xs))
+floatAverage xs = foldr (+) 0 xs / (fromInt (length xs))
 
 --- Remove leading and trailing whitespace
 strip :: String -> String

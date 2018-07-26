@@ -16,16 +16,16 @@
 --- @version October 2014
 ----------------------------------------------------------------
 
-import Char         ( isDigit )
-import Directory
-import Distribution ( installDir,  curryCompiler)
-import FilePath     ( (</>) )
-import FileGoodies
-import IO
-import List         ( intercalate )
-import ReadShowTerm ( readQTerm )
-import System
-import Time
+import Data.Char          ( isDigit )
+import Data.Time
+import Data.List          ( intercalate )
+import System.Directory
+import System.FilePath    ( (</>), takeDirectory, takeExtension, dropExtension )
+import System.IO
+import System.Process
+import System.Environment
+import Distribution       ( installDir,  curryCompiler)
+import ReadShowTerm       ( readQTerm )
 
 import BenchmarkPackageConfig ( packagePath )
 
@@ -53,7 +53,7 @@ processArgs runlatex args = case args of
   "-f":rargs  -> processArgs True rargs
   [infile]    -> if head infile == '-'
                  then showError
-                 else let texfile = if fileSuffix infile == "tex"
+                 else let texfile = if takeExtension infile == "tex"
                                     then infile
                                     else infile++".tex"
                        in mainExec texfile runlatex
@@ -76,7 +76,7 @@ mainExec textfile runlatex = do
   hascode <- extractCode textfile
   when (hascode && runlatex) $ do
     st <- system $ "pdflatex "++textfile
-    when (st==0) (system ("evince "++stripSuffix textfile++".pdf") >> done)
+    when (st==0) (system ("evince "++dropExtension textfile++".pdf") >> done)
     exitWith st
 
 -- Extract Curry code snippets from a latex file.
@@ -90,7 +90,7 @@ extractCode textfile = do
   pid <- getPID
   let tmpname   = "tmpxxx"++show pid
       curryfile = tmpname++".curry"
-      macrofile = stripSuffix textfile ++ ".currycode.tex"
+      macrofile = dropExtension textfile ++ ".currycode.tex"
   absmacrofile <- getAbsolutePath macrofile
   cnts <- readFile textfile
   hc <- openFile curryfile WriteMode
@@ -105,7 +105,7 @@ extractCode textfile = do
    else do
      saveOldFile absmacrofile
      copyFile (packagePath </> "include" </> currycodeFile)
-              (dirName absmacrofile++'/':currycodeFile)
+              (takeDirectory absmacrofile++'/':currycodeFile)
      hPutStrLn hc $
        concatMap genMacro (zip [1..] codesnippets) ++
        "\nmain :: IO ()" ++
