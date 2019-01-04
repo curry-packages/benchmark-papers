@@ -24,12 +24,13 @@ module Benchmarks(Benchmark, benchmark, prepareBenchmarkCleanup,
 import IO
 import IOExts
 import List
-import Profile
 import ReadShowTerm
 import Char
 import System
 import Float
 import Maybe(sequenceMaybe)
+
+import Debug.Profile
 
 --- Representation of benchmarks.
 --- A benchmark consists of some preparation, e.g., to generate

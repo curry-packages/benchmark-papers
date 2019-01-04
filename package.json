@@ -5,6 +5,8 @@
     "synopsis": "A tool to support executable benchmark papers",
     "category": [ "Programming", "Testing" ],
     "dependencies": {
+        "base"     : ">= 1.0.0, < 2.0.0",
+        "profiling": ">= 0.0.1"
     },
     "compilerCompatibility": {
         "pakcs": ">= 2.0.0",
