@@ -1,16 +1,15 @@
------------------------------------------------------------------
+------------------------------------------------------------------------------
 --- A DSL for benchmark descriptions embedded into Curry
 ---
 --- @author Michael Hanus
 --- @version February 2019
------------------------------------------------------------------
+------------------------------------------------------------------------------
 
 module Test.Benchmark
   ( Benchmark, benchmark, prepareBenchmarkCleanup,
     withPrepare, withCleanup,
-    iterateBench, (*>), (*>-),
+    iterateBench, (*>),
     mapBench, pairBench, diffBench, (.-.),
-    (>!>=), returnBM,
     runOn, runUntilOn, runUntilNothingOn, execBench,
     benchTimeNF, benchCommandOutput,
     CmdResult, cmdResultAverage,
@@ -34,6 +33,7 @@ import System
 
 import Debug.Profile
 
+------------------------------------------------------------------------------
 --- Representation of benchmarks.
 --- A benchmark consists of some preparation, e.g., to generate
 --- benchmark data, some final cleanup, and the benchmark itself.
@@ -44,6 +44,27 @@ data Benchmark a = BM (IO ()) (IO ()) (IO a)
 --- A benchmark is basically an I/O action to compute the benchmark results.
 benchmark :: IO a -> Benchmark a
 benchmark bench = BM done done bench
+
+--- Benchmarks have a monadic structure.
+instance Monad Benchmark where
+  bench1 >>= abench2 = BM done done $
+    execBench bench1 >>= \x -> execBench (abench2 x)
+
+  return x = benchmark (return x)
+
+--- Maps benchmark results according to a given mapping (first argument).
+mapBench :: (a -> b) -> Benchmark a -> Benchmark b
+mapBench f (BM pre post action) = BM pre post $ action >>= return . f
+
+instance Functor Benchmark where
+  fmap f (BM pre post action) = BM pre post $ action >>= return . f
+
+--- Combines two benchmarks to a single benchmark where the results
+--- are paired.
+pairBench :: Benchmark a -> Benchmark b -> Benchmark (a,b)
+pairBench bench1 bench2 = BM done done $
+  execBench bench1 >>= \x -> execBench bench2 >>= \y -> return (x,y)
+
 
 --- Adds some initial preparation action to a benchmark, e.g., to generate
 --- benchmark data.
@@ -66,35 +87,40 @@ prepareBenchmarkCleanup :: IO () -> IO a -> IO () -> Benchmark a
 prepareBenchmarkCleanup pre bench post =
   BM done done (execBench (BM pre post bench))
 
+------------------------------------------------------------------------------
+-- Repeatable benchmarks
+
+--- The class of benchmark results which supports multiple runs by
+--- computing the average of a non-empty(!) list of multiple results.
+class MultiRunnable a where
+  average :: [a] -> a
+
+instance MultiRunnable Int where
+  average xs = foldr (+) 0 xs `div` (length xs)
+
+instance MultiRunnable Float where
+  average xs = foldr (+) 0.0 xs / fromInt (length xs)
+
+instance MultiRunnable a => MultiRunnable (Maybe a) where
+  average = maybe Nothing (Just . average) . sequenceMaybe
+
+--- Iterates a benchmark multiple times and computes the average result.
+--- The preparation and cleanup actions of the benchmark are
+--- only executed once, i.e., they are not iterated.
+--- The number of executions (first argument) must be postive.
+(*>) :: MultiRunnable a => Int -> Benchmark a -> Benchmark a
+num *> (BM pre post action) = BM pre post $
+  mapIO (\_ -> action) [1 .. num] >>= \rs -> return (average rs)
+
 --- Iterates a benchmark multiple times and computes the average according
 --- to a given average function (first argument).
 --- The preparation and cleanup actions of the benchmark are
 --- only executed once, i.e., they are not iterated.
 iterateBench :: ([a] -> b) -> Int -> Benchmark a -> Benchmark b
-iterateBench average n (BM pre post action) = BM pre post $
-  mapIO (\_ -> action) [1..n] >>= \rs -> return (average rs)
+iterateBench averagef n (BM pre post action) = BM pre post $
+  mapIO (\_ -> action) [1..n] >>= \rs -> return (averagef rs)
 
---- Iterates a float-valued benchmark multiple times and computes the average.
---- The number of executions (first argument) must be postive.
-(*>) :: Int -> Benchmark Float -> Benchmark Float
-n *> floatbench = iterateBench floatAverage n floatbench
-
---- Iterates a `(Maybe Float)`-valued benchmark multiple times and
---- computes the average.
---- The number of executions (first argument) must be postive.
-(*>-) :: Int -> Benchmark (Maybe Float) -> Benchmark (Maybe Float)
-n *>- mbfloatbench = iterateBench maybeFloatAverage n mbfloatbench
-  where maybeFloatAverage = maybe Nothing (Just . floatAverage) . sequenceMaybe
-
---- Maps benchmark results according to a given mapping (first argument).
-mapBench :: (a -> b) -> Benchmark a -> Benchmark b
-mapBench f (BM pre post action) = BM pre post $ action >>= return . f
-
---- Combines two benchmarks to a single benchmark where the results
---- are paired.
-pairBench :: Benchmark a -> Benchmark b -> Benchmark (a,b)
-pairBench bench1 bench2 = BM done done $
-  execBench bench1 >>= \x -> execBench bench2 >>= \y -> return (x,y)
+------------------------------------------------------------------------------
 
 --- Computes the difference between two benchmarks according to a given
 --- difference operation (first argument).
@@ -107,22 +133,10 @@ diffBench minus bench1 bench2 =
 
 --- Computes the numeric difference between two Float-valued benchmarks.
 --- This could be useful to evaluate some kernel of a computation where
---- the ressources to prepare the benchmark data are measured by
+--- the resources to prepare the benchmark data are measured by
 --- a separate benchmark and subtracted with this operation.
 (.-.) :: Benchmark Float -> Benchmark Float -> Benchmark Float
 bench1 .-. bench2 = diffBench (-.) bench1 bench2
-
---- Executes two benchmarks in sequential order. The second benchmark
---- has the result of the first benchmark as an argument so that
---- its behavior can depend on the first benchmark result.
---- An example use is shown in the operation 'benchOnWithLimit'.
-(>!>=) :: Benchmark a -> (a -> Benchmark b) -> Benchmark b
-bench1 >!>= abench2 = BM done done $
-  execBench bench1 >>= \x -> execBench (abench2 x)
-
---- A benchmark that just returns a given value.
-returnBM :: a -> Benchmark a
-returnBM x = benchmark (return x)
 
 --- Runs a parameterized benchmark on a list of input data.
 --- The result is a benchmark returning a list of pairs consisting
@@ -142,12 +156,13 @@ runOn bench xs = BM done done $
 --- @param benchdata - the list of input data for the benchmarks
 --- @return Benchmark with the list of input data and benchmark results pairs
 runUntilOn :: (a -> Benchmark b) -> (b -> Bool) -> [a] -> Benchmark [(a,b)]
-runUntilOn _ _ [] = returnBM []
-runUntilOn bench stop (x:xs) =
-  bench x >!>= \bmresult ->
-  if stop bmresult then returnBM []
-                   else runUntilOn bench stop xs >!>= \results ->
-                        returnBM ((x,bmresult):results)
+runUntilOn _ _ [] = return []
+runUntilOn bench stop (x:xs) = do
+  bmresult <- bench x
+  if stop bmresult
+    then return []
+    else do results <- runUntilOn bench stop xs
+            return ((x,bmresult):results)
 
 --- Run a `Maybe` benchmark on an (infinite) input list of values
 --- until a benchmark delivers `Nothing`.
@@ -213,16 +228,21 @@ benchCommandOutput cmd = benchmark $ evalCmd cmd [] ""
 --- (in Kilobytes).
 data CmdResult = CD String Int Float Float Float Int
 
+--- The average of a non-empty list of command benchmark results.
+--- The exit status average is zero of all are zero.
+instance MultiRunnable CmdResult where
+  average cds =
+    CD (if null cds then "" else (cmdString (head cds)))
+       (if all (==0) (map exitStatus cds) then 0 else 1)
+       (average (map elapsedTime cds))
+       (average (map cpuTime     cds))
+       (average (map systemTime  cds))
+       (average (map maxResidentMemory cds))
+
 --- The average of a list of command benchmark results.
 --- The exit status average is zero of all are zero.
 cmdResultAverage :: [CmdResult] -> CmdResult
-cmdResultAverage cds =
-  CD (if null cds then "" else (cmdString (head cds)))
-     (if all (==0) (map exitStatus cds) then 0 else 1)
-     (floatAverage (map elapsedTime cds))
-     (floatAverage (map cpuTime     cds))
-     (floatAverage (map systemTime  cds))
-     (intAverage (map maxResidentMemory cds))
+cmdResultAverage = average
 
 --- The command string of the command benchmark result.
 cmdString :: CmdResult -> String
@@ -359,14 +379,6 @@ getCPUModel = do
 --- Run the command and returns stdout output
 runCmd :: String -> IO String
 runCmd cmd = connectToCommand cmd >>= hGetContents >>= return . strip
-
---- Average of a list of ints.
-intAverage :: [Int] -> Int
-intAverage xs = foldr (+) 0 xs `div` (length xs)
-
---- Average of a list of floats.
-floatAverage :: [Float] -> Float
-floatAverage xs = foldr (+.) 0.0 xs /. (i2f (length xs))
 
 --- Remove leading and trailing whitespace
 strip :: String -> String

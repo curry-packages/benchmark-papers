@@ -51,6 +51,7 @@ processArgs runlatex args = case args of
   ["-?"]      -> showHelp
   ["--help"]  -> showHelp
   "-c":rargs  -> invokeCurry rargs
+  ["-l",prog] -> invokeCurry [":load",prog]
   "-f":rargs  -> processArgs True rargs
   [infile]    -> if head infile == '-'
                  then showError
@@ -67,7 +68,7 @@ showHelp :: IO ()
 showHelp = putStrLn $ unlines
   [ "Usage:"
   , ""
-  , "    " ++ progname ++ " <options> <texfile>"
+  , "    " ++ progname ++ " <options> [<texfile>]"
   , ""
   , "with options:"
   , ""
@@ -75,7 +76,11 @@ showHelp = putStrLn $ unlines
   , "-?     : show help info"
   , "--help : show help info"
   , "-f     : format generated LaTeX file with pdflatex and show it with evince"
+  , ""
+  , "-l <prog>          : invoke Curry compiler with benchmark package load path"
+  , "                     and load the Curry program <prog>"
   , "-c <compiler args> : invoke Curry compiler with benchmark package load path"
+  , "                     and pass the given arguments"
   ]
  where
   progname = takeBaseName packageExecutable

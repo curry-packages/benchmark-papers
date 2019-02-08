@@ -39,7 +39,7 @@ cleanCurry cs prog = case cs of
 nrevProgBenchsWithLimit :: CurrySystem -> Float -> [Int]
                         -> Benchmark [(Int,Float)]
 nrevProgBenchsWithLimit currysystem tlimit listlens =
-  runUntilNothingOn (\n -> 3 *>- nrevBenchWithLimit n) listlens
+  runUntilNothingOn (\n -> 3 *> nrevBenchWithLimit n) listlens
     `withPrepare` compileCurry currysystem "NRev"
     `withCleanup` cleanCurry   currysystem "NRev"
  where

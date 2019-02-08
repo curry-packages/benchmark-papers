@@ -38,7 +38,6 @@ nrevBenchDiff n =
   benchTimeNF (return (nrev [1..n]))  .-.  benchTimeNF (return [1..n])
 
 nrevMainBench :: IO String
-
 nrevMainBench =
   execBench (mapBench (map (\ (n,f) -> (show n, showF2 f)))
                (runOn (\n -> 1 *> nrevBenchDiff n) [500,1000..2500])) >>=
