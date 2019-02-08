@@ -2,33 +2,35 @@
 --- A DSL for benchmark descriptions embedded into Curry
 ---
 --- @author Michael Hanus
---- @version November 2014
+--- @version February 2019
 -----------------------------------------------------------------
 
-module Benchmarks(Benchmark, benchmark, prepareBenchmarkCleanup,
-         withPrepare, withCleanup,
-         iterateBench, (*>), (*>-),
-         mapBench, pairBench, diffBench, (.-.),
-         (>!>=), returnBM,
-         runOn, runUntilOn, runUntilNothingOn, execBench,
-         benchTimeNF, benchCommandOutput,
-         CmdResult, cmdResultAverage,
-         exitStatus, elapsedTime, cpuTime, systemTime,
-         maxResidentMemory,
-         benchCommand, benchCommandWithLimit,
-         elapsedTime4Command, cpuTime4Command,
-         getHostName, getOS, getSystemID, getSystemRelease, 
-         getSystemDescription, getCoreNumber, getCPUModel )
+module Test.Benchmark
+  ( Benchmark, benchmark, prepareBenchmarkCleanup,
+    withPrepare, withCleanup,
+    iterateBench, (*>), (*>-),
+    mapBench, pairBench, diffBench, (.-.),
+    (>!>=), returnBM,
+    runOn, runUntilOn, runUntilNothingOn, execBench,
+    benchTimeNF, benchCommandOutput,
+    CmdResult, cmdResultAverage,
+    exitStatus, elapsedTime, cpuTime, systemTime,
+    maxResidentMemory,
+    benchCommand, benchCommandWithLimit,
+    elapsedTime4Command, cpuTime4Command,
+    getHostName, getOS, getSystemID, getSystemRelease, 
+    getSystemDescription, getCoreNumber, getCPUModel
+  )
  where
 
+import Char
 import IO
 import IOExts
-import List
-import ReadShowTerm
-import Char
-import System
 import Float
-import Maybe(sequenceMaybe)
+import List
+import Maybe ( sequenceMaybe )
+import ReadShowTerm
+import System
 
 import Debug.Profile
 

@@ -3,9 +3,10 @@
 --- naive reverse benchmark and visualize the results with gnuplot.
 -----------------------------------------------------------------------
 
-import Benchmarks
-import BenchmarkGoodies
 import System
+
+import Test.Benchmark
+import Test.Benchmark.Goodies
 
 -----------------------------------------------------------------------
 -- Compile a Curry program (here: NRev) with different Curry systems
@@ -14,8 +15,8 @@ import System
 
 -- The compilers used in the benchmarks
 data CurrySystem = PAKCS
-                | MCC
-                | KiCS2 String -- ghc options
+                 | MCC
+                 | KiCS2 String -- ghc options
 
 compileCurry :: CurrySystem -> String -> IO ()
 compileCurry cs prog = system cmd >> done

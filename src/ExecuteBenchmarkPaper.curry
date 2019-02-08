@@ -13,13 +13,13 @@
 --- code snippets are executed.
 ---
 --- @author Michael Hanus
---- @version October 2014
+--- @version February 2019
 ----------------------------------------------------------------
 
 import Char         ( isDigit )
 import Directory
-import Distribution ( installDir,  curryCompiler)
-import FilePath     ( (</>) )
+import Distribution ( installDir, curryCompiler)
+import FilePath     ( (</>), takeBaseName )
 import FileGoodies
 import IO
 import List         ( intercalate )
@@ -27,15 +27,15 @@ import ReadShowTerm ( readQTerm )
 import System
 import Time
 
-import BenchmarkPackageConfig ( packagePath )
+import Test.Benchmark.PackageConfig
 
 -- Curry system executable to be used to execute Curry code snippets.
 currySystem :: String
-currySystem = installDir++"/bin/"++curryCompiler
+currySystem = installDir </> "bin" </> curryCompiler
 
 -- The cleancurry command of the Curry system
 cleanCurry :: String
-cleanCurry = installDir++"/bin/cleancurry"
+cleanCurry = installDir </> "bin" </> "cleancurry"
 
 -- The LaTeX macro file containing definitions for Curry macros:
 currycodeFile :: String
@@ -50,33 +50,51 @@ processArgs runlatex args = case args of
   ["-h"]      -> showHelp
   ["-?"]      -> showHelp
   ["--help"]  -> showHelp
+  "-c":rargs  -> invokeCurry rargs
   "-f":rargs  -> processArgs True rargs
   [infile]    -> if head infile == '-'
                  then showError
                  else let texfile = if fileSuffix infile == "tex"
                                     then infile
-                                    else infile++".tex"
+                                    else infile ++ ".tex"
                        in mainExec texfile runlatex
   _ -> showError
  where
   showError =
-    error ("Illegal arguments (use '--help' for description):\n"++unwords args)
+    error ("Illegal arguments (use '--help' for description):\n" ++ unwords args)
 
 showHelp :: IO ()
-showHelp = putStrLn $
-  "Usage: <prog> <options> <texfile>\n" ++
-  "where <options> can contain:\n"++
-  "-h     : show help info\n"++
-  "-?     : show help info\n"++
-  "--help : show help info\n"++
-  "-f     : format generated LaTeX file with pdflatex and show it with evince\n"
+showHelp = putStrLn $ unlines
+  [ "Usage:"
+  , ""
+  , "    " ++ progname ++ " <options> <texfile>"
+  , ""
+  , "with options:"
+  , ""
+  , "-h     : show help info"
+  , "-?     : show help info"
+  , "--help : show help info"
+  , "-f     : format generated LaTeX file with pdflatex and show it with evince"
+  , "-c <compiler args> : invoke Curry compiler with benchmark package load path"
+  ]
+ where
+  progname = takeBaseName packageExecutable
+
+-- Invoke the Curry compiler with load path extended by package load path.
+invokeCurry :: [String] -> IO ()
+invokeCurry args = do
+  currypath  <- bmLoadPath
+  let cmd = unwords $ currySystem : ":set path" : currypath : args
+  --putStrLn $ "EXECUTING: " ++ cmd
+  ec <- system cmd
+  exitWith ec
 
 mainExec :: String -> Bool -> IO ()
-mainExec textfile runlatex = do
-  hascode <- extractCode textfile
+mainExec texfile runlatex = do
+  hascode <- extractCode texfile
   when (hascode && runlatex) $ do
-    st <- system $ "pdflatex "++textfile
-    when (st==0) (system ("evince "++stripSuffix textfile++".pdf") >> done)
+    st <- system $ "pdflatex " ++ texfile
+    when (st==0) (system ("evince " ++ stripSuffix texfile ++ ".pdf") >> done)
     exitWith st
 
 -- Extract Curry code snippets from a latex file.
@@ -86,13 +104,13 @@ mainExec textfile runlatex = do
 -- a latex macro file (with suffix `.currycode.tex`) defining
 -- for each code snippet its execution result.
 extractCode :: String -> IO Bool
-extractCode textfile = do
+extractCode texfile = do
   pid <- getPID
-  let tmpname   = "tmpxxx"++show pid
-      curryfile = tmpname++".curry"
-      macrofile = stripSuffix textfile ++ ".currycode.tex"
+  let tmpname   = "tmpxxx" ++ show pid
+      curryfile = tmpname ++ ".curry"
+      macrofile = stripSuffix texfile ++ ".currycode.tex"
   absmacrofile <- getAbsolutePath macrofile
-  cnts <- readFile textfile
+  cnts <- readFile texfile
   hc <- openFile curryfile WriteMode
   hPutStrLn hc "import ExecuteBenchmarkPaper\n"
   codesnippets <- extractCurryCode hc cnts
@@ -105,29 +123,36 @@ extractCode textfile = do
    else do
      saveOldFile absmacrofile
      copyFile (packagePath </> "include" </> currycodeFile)
-              (dirName absmacrofile++'/':currycodeFile)
+              (dirName absmacrofile </> currycodeFile)
      hPutStrLn hc $
        concatMap genMacro (zip [1..] codesnippets) ++
        "\nmain :: IO ()" ++
        "\nmain = genMacroFile [" ++
                  intercalate "," (map (\i->macroOpName i)
                                       [1 .. length codesnippets]) ++
-                 "] \""++absmacrofile++"\"\n"
+                 "] \"" ++ absmacrofile ++ "\"\n"
      hClose hc
      putStrLn "Computing results for Curry code snippets..."
-     ec <- system $ unwords [currySystem,":set path",packagePath </> "src",
-                             ":load",curryfile,":eval main",":quit"]
+     currypath  <- bmLoadPath
+     let evalcmd = unwords [ currySystem
+                           , ":set path", currypath
+                           , ":load", curryfile
+                           , ":eval main"
+                           , ":quit" ]
+     --putStrLn $ "EXECUTING: " ++ evalcmd
+     ec <- system evalcmd
      system $ cleanCurry ++ " " ++ tmpname
      if ec==0
       then removeFile curryfile >> return True
-      else error $ "Something went wrong when executing Curry code snippets\n"++
-                   "Inspect generated Curry program in \""++curryfile++"\"\n"
+      else error $
+             "Something went wrong when executing Curry code snippets\n" ++
+             "Inspect generated Curry program in \"" ++ curryfile ++ "\"\n"
  where
    macroOpName i = "runCurryMacro" ++ show i
 
    genMacro (i,m) =
-     '\n':macroOpName i++" :: (String, IO String)\n"++
-          macroOpName i++" = ("++show m++","++m++")\n"
+     '\n':macroOpName i ++ " :: (String, IO String)\n" ++ 
+          macroOpName i ++ " = (" ++ show m ++ "," ++ m ++ ")\n"
 
 --- If a file with the given name `fname` exists, it is moved
 --- to the file `fname.date`, where `date` is the modification date
@@ -153,7 +178,7 @@ extractCurryCode hc (c:cs) = case c of
   '\\' -> if take 9 cs == "runcurry{"
           then let (s,ds) = break (=='}') (drop 9 cs)
                 in if null ds
-                   then error ("UNCLOSED MACRO: "++c:take 50 cs++"...")
+                   then error ("UNCLOSED MACRO: " ++ c:take 50 cs ++ "...")
                    else do xs <- extractCurryCode hc (tail ds)
                            return (s:xs)
           else extractCurryCode hc cs
@@ -183,19 +208,33 @@ copyCurryCode hc (d:ds) = case d of
 genMacroFile :: [(String,IO String)] -> String -> IO ()
 genMacroFile macros outfile = do
   s <- mapIO showMacro macros
-  writeFile outfile ("\\newcommand{\\curryresult}[1]\n"++genResultMacro s++"\n")
-  putStrLn $ "Execution results written into file '"++outfile++"'"
+  writeFile outfile ("\\newcommand{\\curryresult}[1]\n" ++ genResultMacro s ++ "\n")
+  putStrLn $ "Execution results written into file '" ++ outfile ++ "'"
  where
   showMacro (m,act) = do
     bmReport m
     s <- act
-    return ("\\ifthenelse{\\equal{#1}{" ++m ++ "}}{" ++ s ++"}\n")
+    return ("\\ifthenelse{\\equal{#1}{"  ++ m ++ "}}{" ++ s ++ "}\n")
 
   genResultMacro [] = "{\\{\\texttt{#1}\\}}\n"
-  genResultMacro (t:ts) = "{"++t++"{"++genResultMacro ts++"}}"
+  genResultMacro (t:ts) = "{" ++ t ++ "{" ++ genResultMacro ts ++ "}}"
 
 -- Report execution of a code snippet:
 bmReport :: String -> IO ()
 bmReport c = putStrLn $ "Running benchmark code: " ++ c
+
+----------------------------------------------------------------
+-- Auxiliaries:
+
+--- Computes the load path for compiling benchmark code.
+--- The load path consists of the standard load path (defined by `CURRYPATH`)
+--- and the additional load path for packages required by this package.
+bmLoadPath :: IO String
+bmLoadPath = do
+    ecurrypath <- getEnviron "CURRYPATH"
+    let ecurrypath' = case ecurrypath of ':':_ -> '.':ecurrypath
+                                         _     -> ecurrypath
+    return $ if null ecurrypath' then packageLoadPath
+                                 else ecurrypath' ++ ":" ++ packageLoadPath
 
 ----------------------------------------------------------------

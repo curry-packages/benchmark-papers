@@ -12,8 +12,8 @@
         "pakcs": ">= 2.0.0",
         "kics2": ">= 2.0.0"
     },
-    "exportedModules": [ "Benchmarks", "BenchmarkGoodies" ],
-    "configModule": "BenchmarkPackageConfig",
+    "exportedModules": [ "Test.Benchmark", "Test.Benchmark.Goodies" ],
+    "configModule": "Test.Benchmark.PackageConfig",
     "executable": {
         "name": "exec-benchmarkpaper",
         "main": "ExecuteBenchmarkPaper"

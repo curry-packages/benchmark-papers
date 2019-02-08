@@ -4,14 +4,14 @@
 --- visualize benchmark results.
 ---
 --- @author Michael Hanus
---- @version October 2014
+--- @version February 2019
 -----------------------------------------------------------------
 
-module BenchmarkGoodies(
-         showF2,
-         benchInputsResultsAsTable, benchResultsAsTable, toTableRow,
-         PlotStyle(..), plotResults
-         )
+module Test.Benchmark.Goodies
+  ( showF2,
+    benchInputsResultsAsTable, benchResultsAsTable, toTableRow,
+    PlotStyle(..), plotResults
+  )
  where
 
 import FileGoodies(fileSuffix,stripSuffix)
