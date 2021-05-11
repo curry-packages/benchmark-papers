@@ -13,19 +13,21 @@
 --- code snippets are executed.
 ---
 --- @author Michael Hanus
---- @version February 2019
+--- @version May 2021
 ----------------------------------------------------------------
 
-import Char         ( isDigit )
-import Directory
-import Distribution ( installDir, curryCompiler)
-import FilePath     ( (</>), takeBaseName )
-import FileGoodies
-import IO
-import List         ( intercalate )
-import ReadShowTerm ( readQTerm )
-import System
-import Time
+import Control.Monad      ( when )
+import Curry.Compiler.Distribution ( installDir, curryCompiler)
+import Data.List          ( intercalate )
+import System.Environment ( getArgs, getEnv )
+
+import System.FilePath    ( (</>), dropExtension, takeBaseName
+                          , takeDirectory, takeExtension )
+import System.IO
+
+import System.Directory
+import System.Process     ( exitWith, getPID, system )
+import Data.Time
 
 import Test.Benchmark.PackageConfig
 
@@ -54,11 +56,11 @@ processArgs runlatex args = case args of
   ["-l",prog] -> invokeCurry [":load",prog]
   "-f":rargs  -> processArgs True rargs
   [infile]    -> if head infile == '-'
-                 then showError
-                 else let texfile = if fileSuffix infile == "tex"
-                                    then infile
-                                    else infile ++ ".tex"
-                       in mainExec texfile runlatex
+                   then showError
+                   else let texfile = if takeExtension infile == ".tex"
+                                        then infile
+                                        else infile ++ ".tex"
+                        in mainExec texfile runlatex
   _ -> showError
  where
   showError =
@@ -99,7 +101,9 @@ mainExec texfile runlatex = do
   hascode <- extractCode texfile
   when (hascode && runlatex) $ do
     st <- system $ "pdflatex " ++ texfile
-    when (st==0) (system ("evince " ++ stripSuffix texfile ++ ".pdf") >> done)
+    when (st==0) $ do
+      system $ "evince " ++ dropExtension texfile ++ ".pdf"
+      return ()
     exitWith st
 
 -- Extract Curry code snippets from a latex file.
@@ -113,7 +117,7 @@ extractCode texfile = do
   pid <- getPID
   let tmpname   = "tmpxxx" ++ show pid
       curryfile = tmpname ++ ".curry"
-      macrofile = stripSuffix texfile ++ ".currycode.tex"
+      macrofile = dropExtension texfile ++ ".currycode.tex"
   absmacrofile <- getAbsolutePath macrofile
   cnts <- readFile texfile
   hc <- openFile curryfile WriteMode
@@ -128,7 +132,7 @@ extractCode texfile = do
    else do
      saveOldFile absmacrofile
      copyFile (packagePath </> "include" </> currycodeFile)
-              (dirName absmacrofile </> currycodeFile)
+              (takeDirectory absmacrofile </> currycodeFile)
      hPutStrLn hc $
        concatMap genMacro (zip [1..] codesnippets) ++
        "\nmain :: IO ()" ++
@@ -212,7 +216,7 @@ copyCurryCode hc (d:ds) = case d of
 -- Generate a LaTeX file containing results of macro execution.
 genMacroFile :: [(String,IO String)] -> String -> IO ()
 genMacroFile macros outfile = do
-  s <- mapIO showMacro macros
+  s <- mapM showMacro macros
   writeFile outfile ("\\newcommand{\\curryresult}[1]\n" ++ genResultMacro s ++ "\n")
   putStrLn $ "Execution results written into file '" ++ outfile ++ "'"
  where
@@ -236,10 +240,10 @@ bmReport c = putStrLn $ "Running benchmark code: " ++ c
 --- and the additional load path for packages required by this package.
 bmLoadPath :: IO String
 bmLoadPath = do
-    ecurrypath <- getEnviron "CURRYPATH"
-    let ecurrypath' = case ecurrypath of ':':_ -> '.':ecurrypath
-                                         _     -> ecurrypath
-    return $ if null ecurrypath' then packageLoadPath
-                                 else ecurrypath' ++ ":" ++ packageLoadPath
+  ecurrypath <- getEnv "CURRYPATH"
+  let ecurrypath' = case ecurrypath of ':':_ -> '.':ecurrypath
+                                       _     -> ecurrypath
+  return $ if null ecurrypath' then packageLoadPath
+                               else ecurrypath' ++ ":" ++ packageLoadPath
 
 ----------------------------------------------------------------

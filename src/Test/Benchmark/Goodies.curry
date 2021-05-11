@@ -4,7 +4,7 @@
 --- visualize benchmark results.
 ---
 --- @author Michael Hanus
---- @version February 2019
+--- @version May 2021
 -----------------------------------------------------------------
 
 module Test.Benchmark.Goodies
@@ -14,9 +14,9 @@ module Test.Benchmark.Goodies
   )
  where
 
-import FileGoodies(fileSuffix,stripSuffix)
-import List
-import System
+import Data.List       ( intercalate )
+import System.FilePath ( dropExtension, takeExtension )
+import System.Process  ( system )
 
 -----------------------------------------------------------------------
 -- Operations to format data as strings.
@@ -24,8 +24,8 @@ import System
 -- Shows a floating point number with two decimals.
 showF2 :: Float -> String
 showF2 x = let (xs,ys) = break (=='.') (show x)
-            in if null ys then xs++".00"
-                          else xs++"."++take 2 (tail ys ++ repeat '0')
+            in if null ys then xs ++ ".00"
+                          else xs ++ "." ++ take 2 (tail ys ++ repeat '0')
 
 -----------------------------------------------------------------------
 -- Operations for showing benchmark results as latex tables.
@@ -79,14 +79,14 @@ data PlotStyle = Lines
 
 --- Transform plot styles into gnuplot commands.
 plotStyle2GP :: PlotStyle -> String
-plotStyle2GP Lines = "set style data linespoints\n"++
+plotStyle2GP Lines = "set style data linespoints\n" ++
                      "set key right bottom"
-plotStyle2GP Histogram = "set style histogram clustered\n"++
+plotStyle2GP Histogram = "set style histogram clustered\n" ++
                          "set style data histograms"
-plotStyle2GP (Title s) = "set title \""++s++"\""
-plotStyle2GP (XLabel s) = "set xlabel \""++s++"\""
-plotStyle2GP (YLabel s) = "set ylabel \""++s++"\""
-plotStyle2GP (XTicsRotate a) = "set xtics rotate by "++showInt a
+plotStyle2GP (Title s) = "set title \"" ++ s ++ "\""
+plotStyle2GP (XLabel s) = "set xlabel \"" ++ s ++ "\""
+plotStyle2GP (YLabel s) = "set ylabel \"" ++ s ++ "\""
+plotStyle2GP (XTicsRotate a) = "set xtics rotate by " ++ showInt a
 
 showInt :: Int -> String
 showInt i = if i<0 then '-' : show (-i) else show i
@@ -101,30 +101,30 @@ showInt i = if i<0 then '-' : show (-i) else show i
 plotResults :: (Show a, Show b) =>
                String -> [PlotStyle] -> [(String,[(a,b)])] -> IO ()
 plotResults outfile pstyles titleddata = do
-  let pname          = stripSuffix outfile
-      outsuffix      = fileSuffix outfile
-      plotfileprefix = pname++"_"
-      scriptfile     = pname++".gpscript"
+  let pname          = dropExtension outfile
+      outsuffix      = takeExtension outfile
+      plotfileprefix = pname ++ "_"
+      scriptfile     = pname ++ ".gpscript"
       terminalset    = case outsuffix of
-        "pdf" -> "set terminal pdf enhanced"
-        "jpg" -> "set terminal jpeg nocrop enhanced"
-        _ -> error $ "plotResults: unsupported out file format: "++outsuffix
-  titleddatafiles <- mapIO (writeDataFile plotfileprefix) (zip [1..] titleddata)
+        ".pdf" -> "set terminal pdf enhanced"
+        ".jpg" -> "set terminal jpeg nocrop enhanced"
+        _ -> error $ "plotResults: unsupported out file format: " ++ outsuffix
+  titleddatafiles <- mapM (writeDataFile plotfileprefix) (zip [1..] titleddata)
   writeFile scriptfile $ unlines $
     [terminalset
-    ,"set output '"++outfile++"'"
+    ,"set output '" ++ outfile ++ "'"
     ,"set tics nomirror"
     ,"set style fill solid border"] ++
     map plotStyle2GP pstyles ++
     ["plot " ++ intercalate " , " (map plotCmd titleddatafiles)]
   system $ "gnuplot " ++ scriptfile
   --system $ unwords (["rm",scriptfile] ++ map snd titleddatafiles)
-  putStrLn $ "Data plotted to '"++outfile++"'"
+  putStrLn $ "Data plotted to '" ++ outfile ++ "'"
  where
   plotCmd (title,datfile) =
-    "\""++datfile++"\" " ++
+    "\"" ++ datfile ++ "\" " ++
     (if Histogram `elem` pstyles then "using 2:xtic(1) " else "") ++
-    (if null title then "notitle" else "title \""++title++"\"")
+    (if null title then "notitle" else "title \"" ++ title ++ "\"")
 
     -- Further parameters:
     -- pt 5 : select specific point type
@@ -134,7 +134,7 @@ plotResults outfile pstyles titleddata = do
 writeDataFile :: (Show a, Show c, Show d) =>
                  String -> (a,(b,[(c,d)])) -> IO (b,String)
 writeDataFile fileprefix (n,(title,bdata)) = do
-  let datafilename = fileprefix++show n++".dat"
+  let datafilename = fileprefix ++ show n ++ ".dat"
   writeFile datafilename
             (unlines (map (\ (x,y) -> show x ++ "\t" ++ show y) bdata))
   return (title,datafilename)

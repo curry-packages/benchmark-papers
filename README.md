@@ -24,9 +24,9 @@ Some files in this package:
   macro file containing the results of the code snippets to be
   included in the formatted document.
 
-* `src/Benchmarks.curry`: Implementation of an embedded DSL to support
+* `src/Test/Benchmark.curry`: Implementation of an embedded DSL to support
   the construction of benchmarks.
 
-* `src/BenchmarkGoodies.curry`: Some goodies which might be helpful
+* `src/Test/Benchmark/Goodies.curry`: Some goodies which might be helpful
   to format benchmark results, e.g., to translate them to LaTeX
   or produce graphics via gnuplot.

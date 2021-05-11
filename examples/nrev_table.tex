@@ -40,7 +40,7 @@ nrevBenchDiff n =
 nrevMainBench :: IO String
 nrevMainBench =
   execBench (mapBench (map (\ (n,f) -> (show n, showF2 f)))
-               (runOn (\n -> 1 *> nrevBenchDiff n) [500,1000..2500])) >>=
+               (runOn (\n -> 1 **> nrevBenchDiff n) [500,1000..2500])) >>=
     return . benchInputsResultsAsTable ("length:","time:")
 ----------------------------------------------------------------------
 \end{curryprog}

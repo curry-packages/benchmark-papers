@@ -2,13 +2,13 @@
 --- A DSL for benchmark descriptions embedded into Curry
 ---
 --- @author Michael Hanus
---- @version February 2019
+--- @version May 2021
 ------------------------------------------------------------------------------
 
 module Test.Benchmark
   ( Benchmark, benchmark, prepareBenchmarkCleanup,
     withPrepare, withCleanup,
-    iterateBench, (*>),
+    iterateBench, (**>),
     mapBench, pairBench, diffBench, (.-.),
     runOn, runUntilOn, runUntilNothingOn, execBench,
     benchTimeNF, benchCommandOutput,
@@ -22,14 +22,11 @@ module Test.Benchmark
   )
  where
 
-import Char
-import IO
-import IOExts
-import Float
-import List
-import Maybe ( sequenceMaybe )
-import ReadShowTerm
-import System
+import Data.List      ( isPrefixOf )
+import System.IO      ( hGetContents )
+
+import System.IOExts  ( connectToCommand, evalCmd, readCompleteFile )
+import System.Process ( getPID, system )
 
 import Debug.Profile
 
@@ -43,26 +40,34 @@ data Benchmark a = BM (IO ()) (IO ()) (IO a)
 
 --- A benchmark is basically an I/O action to compute the benchmark results.
 benchmark :: IO a -> Benchmark a
-benchmark bench = BM done done bench
+benchmark bench = BM (return ()) (return ()) bench
+
+--- Benchmarks are functors.
+instance Functor Benchmark where
+  fmap f (BM pre post action) = BM pre post $ action >>= return . f
+
+--- Benchmarks have an `Applicative` structure.
+instance Applicative Benchmark where
+  pure x = benchmark (return x)
+
+  fbench <*> abench = benchmark $
+    execBench fbench >>= \f -> execBench abench >>= \x -> return (f x)
+
 
 --- Benchmarks have a monadic structure.
 instance Monad Benchmark where
-  bench1 >>= abench2 = BM done done $
-    execBench bench1 >>= \x -> execBench (abench2 x)
+  bench1 >>= abench2 =
+    benchmark $ execBench bench1 >>= \x -> execBench (abench2 x)
 
-  return x = benchmark (return x)
 
 --- Maps benchmark results according to a given mapping (first argument).
 mapBench :: (a -> b) -> Benchmark a -> Benchmark b
 mapBench f (BM pre post action) = BM pre post $ action >>= return . f
 
-instance Functor Benchmark where
-  fmap f (BM pre post action) = BM pre post $ action >>= return . f
-
 --- Combines two benchmarks to a single benchmark where the results
 --- are paired.
 pairBench :: Benchmark a -> Benchmark b -> Benchmark (a,b)
-pairBench bench1 bench2 = BM done done $
+pairBench bench1 bench2 = benchmark $
   execBench bench1 >>= \x -> execBench bench2 >>= \y -> return (x,y)
 
 
@@ -85,7 +90,7 @@ withCleanup (BM pre post bench) newpost = BM pre (post >> newpost) bench
 --- the benchmark.
 prepareBenchmarkCleanup :: IO () -> IO a -> IO () -> Benchmark a
 prepareBenchmarkCleanup pre bench post =
-  BM done done (execBench (BM pre post bench))
+  benchmark $ execBench (BM pre post bench)
 
 ------------------------------------------------------------------------------
 -- Repeatable benchmarks
@@ -102,15 +107,15 @@ instance MultiRunnable Float where
   average xs = foldr (+) 0.0 xs / fromInt (length xs)
 
 instance MultiRunnable a => MultiRunnable (Maybe a) where
-  average = maybe Nothing (Just . average) . sequenceMaybe
+  average = maybe Nothing (Just . average) . sequence
 
 --- Iterates a benchmark multiple times and computes the average result.
 --- The preparation and cleanup actions of the benchmark are
 --- only executed once, i.e., they are not iterated.
 --- The number of executions (first argument) must be postive.
-(*>) :: MultiRunnable a => Int -> Benchmark a -> Benchmark a
-num *> (BM pre post action) = BM pre post $
-  mapIO (\_ -> action) [1 .. num] >>= \rs -> return (average rs)
+(**>) :: MultiRunnable a => Int -> Benchmark a -> Benchmark a
+num **> (BM pre post action) = BM pre post $
+  mapM (\_ -> action) [1 .. num] >>= \rs -> return (average rs)
 
 --- Iterates a benchmark multiple times and computes the average according
 --- to a given average function (first argument).
@@ -118,7 +123,7 @@ num *> (BM pre post action) = BM pre post $
 --- only executed once, i.e., they are not iterated.
 iterateBench :: ([a] -> b) -> Int -> Benchmark a -> Benchmark b
 iterateBench averagef n (BM pre post action) = BM pre post $
-  mapIO (\_ -> action) [1..n] >>= \rs -> return (averagef rs)
+  mapM (\_ -> action) [1..n] >>= \rs -> return (averagef rs)
 
 ------------------------------------------------------------------------------
 
@@ -136,7 +141,7 @@ diffBench minus bench1 bench2 =
 --- the resources to prepare the benchmark data are measured by
 --- a separate benchmark and subtracted with this operation.
 (.-.) :: Benchmark Float -> Benchmark Float -> Benchmark Float
-bench1 .-. bench2 = diffBench (-.) bench1 bench2
+bench1 .-. bench2 = diffBench (-) bench1 bench2
 
 --- Runs a parameterized benchmark on a list of input data.
 --- The result is a benchmark returning a list of pairs consisting
@@ -146,8 +151,8 @@ bench1 .-. bench2 = diffBench (-.) bench1 bench2
 --- @param benchdata - the list of input data for the benchmarks
 --- @return Benchmark with the list of input data and benchmark results pairs
 runOn :: (a -> Benchmark b) -> [a] -> Benchmark [(a,b)]
-runOn bench xs = BM done done $
-  mapIO (\x -> execBench (bench x) >>= \y -> return (x,y)) xs
+runOn bench xs =
+  benchmark $ mapM (\x -> execBench (bench x) >>= \y -> return (x,y)) xs
 
 --- Runs a `Maybe` benchmark on an (infinite) input list of values
 --- until a benchmark delivers `Nothing`.
@@ -201,12 +206,12 @@ benchTimeNF getexp = benchmark $ do
   garbageCollectorOff
   pi1 <- getProcessInfos
   exp <- getexp
-  seq (id $!! exp) done
+  seq (id $!! exp) (return ())
   pi2 <- getProcessInfos
   garbageCollectorOn
   let rtime = maybe 0 id (lookup RunTime pi2)
               - maybe 0 id (lookup RunTime pi1)
-  return (i2f rtime /. 1000.0)
+  return (fromInt rtime / 1000.0)
 
 -----------------------------------------------------------------
 -- Benchmarks returning the output of system commands.
@@ -292,10 +297,12 @@ benchCommand cmd = benchmark $ do
   --putStrLn $ "TIMECMD: "++timecmd
   status <- system timecmd
   bmout <- readCompleteFile timefile
-  let (etime,ctime,stime,maxmem) = readQTerm (extractTimeInOutput bmout)
-  system $ "rm -f "++timefile
-  --putStrLn $ "RESULT: " ++ show (CD cmd status etime ctime stime maxmem)
-  return (CD cmd status etime ctime stime maxmem)
+  case reads (extractTimeInOutput bmout) of
+    [((etime,ctime,stime,maxmem),_)] -> do
+      system $ "rm -f "++timefile
+      --putStrLn $ "RESULT: " ++ show (CD cmd status etime ctime stime maxmem)
+      return (CD cmd status etime ctime stime maxmem)
+    _ -> error $ "Cannot read output of time command:\n" ++ bmout
  where
   -- extract benchmark time from timing output:
   extractTimeInOutput =
