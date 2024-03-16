@@ -257,33 +257,31 @@ cmdString (CD cs _ _ _ _ _) = cs
 exitStatus :: CmdResult -> Int
 exitStatus (CD _ s _ _ _ _) = s
 
+checkExitStatus :: String -> Int -> a -> a
+checkExitStatus cmd s x =
+  if s == 0
+    then x
+    else error $ "Benchmark command '" ++ cmd ++ "' has exit status " ++ show s
+
 --- The elapsed time (in seconds) of the command benchmark result.
 --- If the exit status is non-zero, an error is raised.
 elapsedTime :: CmdResult -> Float
-elapsedTime (CD cs s e _ _ _) =
-  if s==0 then e
-          else error ("Benchmark command '"++cs++"' has exit status "++show s)
+elapsedTime (CD cs s e _ _ _) = checkExitStatus cs s e
 
 --- The cpu time (in seconds) of the command benchmark result.
 --- If the exit status is non-zero, an error is raised.
 cpuTime :: CmdResult -> Float
-cpuTime (CD cs s _ c _ _) =
-  if s==0 then c
-          else error ("Benchmark command '"++cs++"' has exit status "++show s)
+cpuTime (CD cs s _ c _ _) = checkExitStatus cs s c
 
 --- The system time (in seconds) of the command benchmark result.
 --- If the exit status is non-zero, an error is raised.
 systemTime :: CmdResult -> Float
-systemTime (CD cs s _ _ st _) =
-  if s==0 then st
-          else error ("Benchmark command '"++cs++"' has exit status "++show s)
+systemTime (CD cs s _ _ st _) = checkExitStatus cs s st
 
 --- The maximum resident size (in Kilobytes) of the command benchmark result.
 --- If the exit status is non-zero, an error is raised.
 maxResidentMemory :: CmdResult -> Int
-maxResidentMemory (CD cs s _ _ _ m) =
-  if s==0 then m
-          else error ("Benchmark command '"++cs++"' has exit status "++show s)
+maxResidentMemory (CD cs s _ _ _ m) = checkExitStatus cs s m
 
 --- Benchmark the execution of a shell command.
 --- Returns benchmark results containing the exit status, elapsed time,
@@ -291,15 +289,15 @@ maxResidentMemory (CD cs s _ _ _ m) =
 benchCommand :: String -> Benchmark CmdResult
 benchCommand cmd = benchmark $ do
   pid <- getPID
-  let timefile = ".time"++show pid
+  let timefile = ".time" ++ show pid
       timecmd = "/usr/bin/time -q --format=\"BENCHMARKTIME=(%e,%U,%S,%M)\" -o "
-                  ++timefile++" "++cmd
-  --putStrLn $ "TIMECMD: "++timecmd
+                  ++ timefile ++ " " ++ cmd
+  --putStrLn $ "TIMECMD: " ++ timecmd
   status <- system timecmd
   bmout <- readCompleteFile timefile
   case reads (extractTimeInOutput bmout) of
     [((etime,ctime,stime,maxmem),_)] -> do
-      system $ "rm -f "++timefile
+      system $ "rm -f " ++ timefile
       --putStrLn $ "RESULT: " ++ show (CD cmd status etime ctime stime maxmem)
       return (CD cmd status etime ctime stime maxmem)
     _ -> error $ "Cannot read output of time command:\n" ++ bmout
@@ -324,7 +322,7 @@ cpuTime4Command = mapBench cpuTime . benchCommand
 benchCommandWithLimit :: String -> Float -> Benchmark (Maybe CmdResult)
 benchCommandWithLimit cmd tlimit =
   mapBench (\cd -> if exitStatus cd == 0 then Just cd else Nothing)
-           (benchCommand $ "/usr/bin/timeout "++show tlimit++"s "++cmd)
+           (benchCommand $ "/usr/bin/timeout " ++ show tlimit ++ "s " ++ cmd)
 
 
 -----------------------------------------------------------------

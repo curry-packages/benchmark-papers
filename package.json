@@ -22,7 +22,7 @@
     "license": "BSD-3-Clause",
     "licenseFile": "LICENSE",
     "source": {
-        "git": "https://git.ps.informatik.uni-kiel.de/curry-packages/benchmark-papers.git",
+        "git": "https://github.com/curry-packages/benchmark-papers.git",
         "tag": "$version"
     }
 }
